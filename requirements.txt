@@ -1,0 +1,7 @@
+flask>=3.0
+requests>=2.31
+
+# 生图进度条依赖：app.py 第 18 行 `import websocket`，
+# _watch_progress() 靠它连 ComfyUI 的 /ws 监听 progress / execution_success。
+# ⚠️ 漏了它的话，出图能跑但进度条会直接崩（服务起不来）。
+websocket-client>=1.7.0

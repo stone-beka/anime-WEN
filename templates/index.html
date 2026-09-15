@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anima Studio</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b;
+    --border: #2a2f3a; --text: #e6e8ec; --muted: #8a93a3;
+    --accent: #ff7ab8; --green: #2ecc71; --red: #e5484d; --amber: #e6a23c;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); height: 100vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  .logo { font-weight: 700; font-size: 16px; }
+  .logo b { color: var(--accent); }
+  header .spacer { flex: 1; }
+  .key-box { display: flex; gap: 8px; align-items: center; }
+  .key-box .status { font-size: 12px; color: var(--muted); }
+  .key-box .status.ok { color: var(--green); }
+  input, textarea, button, select {
+    font-family: inherit; font-size: 13px; border-radius: 8px;
+  }
+  input[type=password], input[type=text], input[type=number], select {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    padding: 7px 9px; outline: none;
+  }
+  input[type=password] { width: 240px; }
+  button {
+    border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+    padding: 8px 13px; cursor: pointer; transition: .15s; white-space: nowrap;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover { filter: brightness(1.1); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  .layout { display: flex; flex: 1; min-height: 0; }
+
+  /* 侧栏 */
+  #sessions {
+    width: 210px; min-width: 210px; background: var(--panel);
+    border-right: 1px solid var(--border); padding: 10px; overflow-y: auto;
+    transition: width .2s, min-width .2s, padding .2s;
+  }
+  body.collapsed-sessions #sessions {
+    width: 0; min-width: 0; padding: 0; border-right: 0; overflow: hidden;
+  }
+  #sessions .item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 9px 11px; border-radius: 8px; cursor: pointer; font-size: 13px;
+    margin-bottom: 6px; color: var(--muted);
+  }
+  #sessions .item:hover { background: var(--panel2); }
+  #sessions .item.active { background: var(--panel2); color: var(--text); border-left: 3px solid var(--accent); }
+  #sessions .item-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #sessions .item-del {
+    flex: none; border: none; background: transparent; color: var(--muted);
+    padding: 0 2px; font-size: 13px; cursor: pointer; opacity: .55; line-height: 1;
+  }
+  #sessions .item-del:hover { color: var(--red); opacity: 1; }
+
+  /* 聊天区 */
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 82%; padding: 11px 14px; border-radius: 12px; line-height: 1.6; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+  .msg.assistant { align-self: flex-start; background: var(--panel2); border-bottom-left-radius: 3px; }
+  .msg .prompt-block { display: block; background: #123018; border: 1px solid #1f4d2a; color: #7ee2a0; border-radius: 8px; padding: 8px 10px; margin: 6px 0; white-space: pre-wrap; }
+  .msg .negative-block { display: block; background: #30141c; border: 1px solid #4d1f2b; color: #e2a07e; border-radius: 8px; padding: 8px 10px; margin: 6px 0; white-space: pre-wrap; }
+  .msg .err { color: var(--red); }
+  .msg .warn { color: var(--amber); font-size: 12px; }
+  .attach-row { display: flex; flex-wrap: wrap; margin-bottom: 4px; }
+  .msg-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .msg-actions button { font-size: 11px; padding: 3px 8px; border-radius: 6px; background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .msg-actions button:hover { color: var(--text); border-color: var(--accent); }
+  #inputBar { display: flex; gap: 10px; padding: 14px; background: var(--panel); }
+  #input { flex: 1; resize: none; height: 52px; background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 12px; border-radius: 10px; outline: none; }
+  #input:focus { border-color: var(--accent); }
+  #searchBar { display: flex; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--border); background: var(--panel); }
+  /* 图库缩略图带（常驻在输入框上方，是「拖进聊天区」的主要拖动源） */
+#galleryStrip { display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-top: 1px solid var(--border); background: var(--panel); }
+.strip-label { font-size: 11px; color: var(--muted); white-space: nowrap; line-height: 1.35; text-align: center; flex: none; }
+#stripItems { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0; flex: 1; min-height: 56px; align-items: center; }
+#stripItems .hint { padding: 0; }
+.s-item { flex: none; }
+.s-item img { width: 54px; height: 54px; object-fit: cover; border-radius: 5px; border: 1px solid var(--border); display: block; cursor: grab; }
+.s-item img:hover { border-color: var(--accent); }
+.s-item img:active { cursor: grabbing; }
+/* 已附带、还没发出去的图 */
+#pendingRow { display: none; flex-wrap: wrap; align-items: center; gap: 9px; padding: 9px 14px 0; border-top: 1px solid var(--border); background: var(--panel); }
+#pendingRow.on { display: flex; }
+.p-item { position: relative; }
+.p-item img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid var(--accent); display: block; }
+.p-x { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; line-height: 16px; padding: 0; font-size: 11px; border-radius: 50%; }
+.p-clear { font-size: 11px; }
+/* 拖拽悬停高亮：整个中间栏都是投放区 */
+main.drop-hover { outline: 2px dashed var(--accent); outline-offset: -6px; background: rgba(120,160,255,.07); }
+  .attach-thumb { max-width: 96px; max-height: 96px; border-radius: 4px; margin: 2px 3px 2px 0; vertical-align: middle; cursor: zoom-in; }
+  #searchBar input { flex: 1; }
+  .ver-nav { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .ver-nav .ver-btn { font-size: 11px; padding: 3px 9px; border-radius: 6px; background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .ver-nav .ver-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+  .ver-nav .ver-btn:disabled { opacity: .35; cursor: default; }
+  .ver-count { font-size: 11px; color: var(--muted); }
+
+  /* 右侧面板 */
+  #right {
+    width: 360px; min-width: 360px; background: var(--panel);
+    border-left: 1px solid var(--border); padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
+  }
+  #right h3 { font-size: 12px; color: var(--muted); font-weight: 600; }
+  #promptArea {
+    width: 100%; background: var(--panel2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; font-size: 13px; color: #7ee2a0; white-space: pre-wrap; min-height: 120px; max-height: 200px; resize: vertical; outline: none; line-height: 1.5;
+  }
+  #negativeArea {
+    width: 100%; background: var(--panel2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px; font-size: 12px; color: #e0a07e; white-space: pre-wrap; min-height: 46px; max-height: 90px; resize: vertical; outline: none; line-height: 1.4;
+  }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row button { flex: 1; }
+  .params { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .params label { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); gap: 3px; }
+  .params input { width: 100%; padding: 5px 7px; }
+  .size-preset-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  .size-preset-row label { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .size-preset-row select { flex: 1; }
+  #lastSeed { font-size: 12px; color: var(--amber); min-height: 16px; }
+  #imagePanel {
+    flex: 1; min-height: 340px; display: flex; align-items: center; justify-content: center;
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; overflow: auto;
+  }
+  #imagePanel img { max-width: 100%; display: block; border-radius: 6px; cursor: zoom-in; }
+  #imagePanel .hint, #imagePanel .loading, #imagePanel .err { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; }
+  #imagePanel .err { color: var(--red); }
+  .prog-wrap { width: 100%; }
+  .prog-bar { height: 10px; background: var(--panel); border-radius: 5px; margin: 12px 0; overflow: hidden; }
+  .prog-bar > div { height: 100%; background: var(--accent); transition: width .3s; }
+  .prog-pct { font-size: 11px; color: var(--muted); }
+  #imagePanel .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; padding: 10px; }
+  #imagePanel .grid .cell { position: relative; }
+  #imagePanel .grid .cell img { width: 100%; height: auto; border-radius: 6px; display: block; }
+  .seed-tag { position: absolute; bottom: 4px; left: 4px; font-size: 10px; background: rgba(0,0,0,.65); color: #fff; padding: 1px 6px; border-radius: 4px; }
+  .edit-area { width: 100%; min-height: 60px; background: var(--panel2); border: 1px solid var(--accent); color: var(--text); padding: 8px; border-radius: 8px; resize: vertical; font-size: 14px; }
+  #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.92); display: none; align-items: center; justify-content: center; z-index: 999; cursor: zoom-out; }
+  #lightbox img { max-width: 95vw; max-height: 95vh; object-fit: contain; }
+  #lightbox .close { position: absolute; top: 18px; right: 26px; font-size: 34px; color: #fff; cursor: pointer; line-height: 1; }
+
+  /* 底部调试抽屉 */
+  .drawer { height: 0; overflow: hidden; background: var(--panel); border-top: 1px solid var(--border); transition: height .2s; }
+  body.show-drawer .drawer { height: 300px; }
+  .drawer-inner { display: flex; flex-direction: column; height: 100%; padding: 10px 16px; }
+  .drawer-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .drawer-tabs button { padding: 6px 12px; font-size: 12px; }
+  .drawer-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .drawer-content { flex: 1; overflow-y: auto; }
+  .tab-pane { display: none; height: 100%; }
+  .tab-pane.active { display: block; }
+  #rulesArea { width: 100%; height: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 8px; resize: none; font-size: 13px; line-height: 1.5; }
+  .gallery { display: flex; flex-wrap: wrap; gap: 8px; }
+  .g-item { width: 92px; cursor: pointer; text-align: center; font-size: 11px; color: var(--muted); }
+  .g-item img { width: 92px; height: 92px; object-fit: cover; border-radius: 6px; display: block; border: 1px solid var(--border); }
+  .g-item:hover img { border-color: var(--accent); }
+  .log-item { font-family: Consolas, monospace; font-size: 12px; color: var(--muted); padding: 3px 0; border-bottom: 1px solid var(--border); white-space: pre-wrap; word-break: break-all; }
+  .rules-crud { display: flex; height: 100%; gap: 10px; min-height: 0; }
+  .rules-side { width: 200px; min-width: 200px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid var(--border); padding-right: 10px; }
+  .rules-side-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); font-weight: 600; }
+  #rulesList { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .rule-item { display: flex; align-items: center; gap: 6px; padding: 7px 9px; border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--muted); }
+  .rule-item:hover { background: var(--panel2); }
+  .rule-item.active { background: var(--panel2); color: var(--text); border-left: 2px solid var(--accent); }
+  .rule-item.current-item { color: var(--green); }
+  .rule-item.new-item { color: var(--amber); font-style: italic; }
+  .rule-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rule-badge { flex: none; font-size: 10px; color: var(--green); background: rgba(46,204,113,.12); border: 1px solid rgba(46,204,113,.3); border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
+  .rules-main { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .rules-editor-head { display: flex; gap: 8px; align-items: center; }
+  .rules-name-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  #presetName { flex: 1; }
+  .rules-editor-actions { display: flex; gap: 8px; }
+  .rules-editor-actions button { flex: 1; font-size: 12px; }
+  .hint { color: var(--muted); }
+
+  /* 搜索消息卡片 */
+  .msg.search { align-self: center; max-width: 92%; background: #16202e; border: 1px solid #2a3a52; }
+  .msg.search .search-head { font-size: 12px; color: var(--amber); font-weight: 600; margin-bottom: 4px; }
+  .msg.search .search-body { font-size: 12px; color: var(--muted); white-space: pre-wrap; max-height: 180px; overflow-y: auto; }
+
+  /* 搜索设置面板 */
+  #tab-search h4 { font-size: 12px; color: var(--muted); font-weight: 600; margin: 10px 0 4px; }
+  #tab-search h4:first-child { margin-top: 0; }
+  .provider-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+  .provider-row .p-name { flex: 1; font-size: 13px; color: var(--text); }
+  .p-btn { font-size: 11px; padding: 2px 8px; }
+  .chk { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 8px 0; }
+  .search-key-row, .search-row { display: flex; gap: 8px; margin: 8px 0; }
+  .search-key-row input, .search-row input { flex: 1; }
+  .search-result { font-size: 12px; color: var(--muted); white-space: pre-wrap; max-height: 200px; overflow-y: auto;
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <header>
+    <span class="logo">🎨 Anima <b>Studio</b></span>
+    <button id="toggleSessions" title="收起/展开聊天记录">◀ 收起记录</button>
+    <button id="newChat">＋ 新建聊天</button>
+    <button id="drawerToggle">🛠 调试面板</button>
+    <div class="spacer"></div>
+    <div class="key-box">
+      <span class="status" id="keyStatus">未设置 Key</span>
+      <input id="apiKey" type="password" placeholder="粘贴 DeepSeek API Key">
+      <button id="saveKey">保存 Key</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside id="sessions"></aside>
+
+    <main>
+      <div id="messages"></div>
+      <div id="searchBar">
+        <input id="chatSearchInput" type="text" placeholder="需要角色资料（外貌/性格/身份）？输入角色名点搜索，结果会以文字卡片出现在对话里">
+        <button id="chatSearchBtn">🔍 搜索角色</button>
+      </div>
+      <div id="galleryStrip">
+        <span class="strip-label" title="把任意一张缩略图拖到聊天区，即可回传给 AI 看">🖼 图库<br><small>拖进聊天区</small></span>
+        <div id="stripItems"></div>
+      </div>
+      <div id="pendingRow"></div>
+      <div id="inputBar">
+        <textarea id="input" placeholder="描述你想画的画面，或对上一张图提出修改…"></textarea>
+        <button id="send" class="primary">发送</button>
+      </div>
+    </main>
+
+    <aside id="right">
+      <h3>当前提示词（英文，可手动编辑）</h3>
+      <textarea id="promptArea" spellcheck="false"></textarea>
+      <div class="btn-row">
+        <button id="copyPrompt">📋 复制提示词</button>
+        <button id="savePromptBtn">💾 保存提示词</button>
+      </div>
+
+      <h3>负向提示词（Anima 支持，默认官方推荐）</h3>
+      <textarea id="negativeArea" spellcheck="false"></textarea>
+
+      <h3>生成参数</h3>
+      <div class="size-preset-row">
+        <label>尺寸预设
+          <select id="sizePreset">
+            <option value="1024,1024">1:1 1024×1024（默认）</option>
+            <option value="768,1344">竖 768×1344</option>
+            <option value="832,1216">竖 832×1216</option>
+            <option value="896,1152">竖 896×1152</option>
+            <option value="1152,896">横 1152×896</option>
+            <option value="1216,832">横 1216×832</option>
+            <option value="1344,768">横 1344×768</option>
+            <option value="1080,1920">手机壁纸 竖 1080×1920</option>
+            <option value="1024,1536">竖 1024×1536（大）</option>
+            <option value="1536,1024">横 1536×1024（大）</option>
+            <option value="1344,1344">1:1 1344×1344（大）</option>
+            <option value="1536,1536">1:1 1536×1536（很大·慢）</option>
+            <option value="2048,2048">1:1 2048×2048（极大·很慢）</option>
+            <option value="custom">自定义（手动填宽高）</option>
+          </select>
+        </label>
+      </div>
+      <div class="params">
+        <label>seed（留空随机）<input id="seedInput" placeholder="随机"></label>
+        <label>步数<input id="stepsInput" type="number" value="30" min="1"></label>
+        <label>CFG<input id="cfgInput" type="number" value="4.0" step="0.1"></label>
+        <label>宽<input id="widthInput" type="number" value="1024" min="64"></label>
+        <label>高<input id="heightInput" type="number" value="1024" min="64"></label>
+        <label>对比张数<input id="multiN" type="number" value="4" min="1" max="4"></label>
+      </div>
+      <div id="lastSeed"></div>
+      <div class="btn-row">
+        <button id="generateBtn" class="primary">🎨 生成</button>
+        <button id="regenerateBtn">🔄 再来一张</button>
+      </div>
+      <div class="btn-row">
+        <button id="multiBtn">🆚 对比生成</button>
+        <button id="stopBtn">⏹ 停止</button>
+      </div>
+      <div id="imagePanel" title="把图拖到左边聊天区，就能回传给 AI 看"><div class="hint">图片会显示在这里</div></div>
+    </aside>
+  </div>
+
+  <div class="drawer">
+    <div class="drawer-inner">
+      <div class="drawer-tabs">
+        <button data-tab="rules" class="active">📐 提示词规则</button>
+        <button data-tab="search">🔍 搜索</button>
+        <button data-tab="gallery">🖼 图库</button>
+        <button data-tab="logs">📋 日志</button>
+      </div>
+      <div class="drawer-content">
+        <div class="tab-pane active" id="tab-rules">
+          <div class="rules-crud">
+            <div class="rules-side">
+              <div class="rules-side-head">
+                <span>预设列表</span>
+                <button id="newPresetBtn" class="p-btn">＋ 新建</button>
+              </div>
+              <div id="rulesList"></div>
+            </div>
+            <div class="rules-main">
+              <div class="rules-editor-head">
+                <span class="rules-name-label">预设名称</span>
+                <input id="presetName" type="text" placeholder="新建时填写；改名直接改这里再保存">
+              </div>
+              <textarea id="rulesArea" spellcheck="false"></textarea>
+              <div class="rules-editor-actions">
+                <button id="savePresetBtn" class="primary">💾 保存当前预设</button>
+                <button id="usePresetBtn">▶ 使用当前预设</button>
+                <button id="deletePresetBtn">🗑 删除预设</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-search">
+          <h4>搜索来源（按优先级，从上到下）</h4>
+          <div id="providerList"></div>
+          <label class="chk"><input type="checkbox" id="autoSearch"> 发送消息时自动判断并搜索角色</label>
+          <div class="search-key-row">
+            <input id="serperKey" type="password" placeholder="Serper API key（可选，通用搜索用）">
+            <button id="saveSearchSettings" class="primary">保存搜索设置</button>
+          </div>
+          <h4>手动搜索角色</h4>
+          <div class="search-row">
+            <input id="searchQuery" type="text" placeholder="输入角色名，如：雷电将军">
+            <button id="doSearch">🔍 搜索</button>
+          </div>
+          <div id="searchResult"></div>
+        </div>
+        <div class="tab-pane" id="tab-gallery"><div class="gallery" id="galleryEl"></div></div>
+        <div class="tab-pane" id="tab-logs"><div id="logsEl"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="lightbox"><span class="close">✕</span><img id="lightboxImg" src="" alt=""></div>
+
+<script>
+  const JSON_HEADERS = {'Content-Type': 'application/json'};
+  let currentSession = null;
+  let currentMessages = [];
+  let currentPrompt = '';
+  let sessions = [];
+  let presets = {};
+  let activeRules = '';
+  let currentPreset = null;   // null=编辑当前规则；'__new__'=新建预设；字符串=编辑该预设
+  let lastSeed = null;
+  // 拖拽回传：待发送的图（拖进聊天区只是「附带」，点发送才真发出去）与内部拖拽类型
+  const DRAG_MIME = 'application/x-anima-image';
+  let pendingImages = [];     // [{name, url, blob}]，name 是发给后端的原始文件名
+  let currentVersions = {};   // {消息index: {branches:[分支id], active:位置}}，用户消息版本切换用
+  let assistantVersions = {}; // 同上，AI 回答「重新生成」版本切换用
+
+  const $ = id => document.getElementById(id);
+  const messagesEl = $('messages'), inputEl = $('input'), sessionsEl = $('sessions'),
+        promptArea = $('promptArea'), negativeArea = $('negativeArea'), imagePanel = $('imagePanel'),
+        lastSeedEl = $('lastSeed'), seedInput = $('seedInput'), stepsInput = $('stepsInput'),
+        cfgInput = $('cfgInput'), widthInput = $('widthInput'), heightInput = $('heightInput'),
+        multiN = $('multiN'), keyStatus = $('keyStatus'), rulesArea = $('rulesArea'),
+        galleryEl = $('galleryEl'), logsEl = $('logsEl');
+  // 输入框原始 placeholder —— 附带了图之后会临时换掉，清空时还原
+  const INPUT_PLACEHOLDER = inputEl.placeholder;
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function renderContent(text) {
+    let esc = escapeHtml(text);
+    esc = esc.replace(/&lt;prompt&gt;([\s\S]*?)&lt;\/prompt&gt;/g, '<span class="prompt-block">$1</span>');
+    return esc.replace(/&lt;negative&gt;([\s\S]*?)&lt;\/negative&gt;/g, '<span class="negative-block">$1</span>');
+  }
+  async function api(url, opts) { return await fetch(url, opts); }
+  function setImage(html) { imagePanel.innerHTML = html; makeDraggable(imagePanel); }
+  function scrollChat() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+  // ---- Key ----
+  async function loadKey() {
+    const j = await (await api('/api/key')).json();
+    keyStatus.textContent = j.has_key ? ('已设置 ' + j.masked) : '未设置 Key';
+    keyStatus.className = 'status' + (j.has_key ? ' ok' : '');
+  }
+  $('saveKey').onclick = async () => {
+    const k = $('apiKey').value.trim();
+    await api('/api/key', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify({api_key: k})});
+    $('apiKey').value = ''; loadKey();
+  };
+
+  // ---- 侧栏 / 会话 ----
+  function renderSidebar() {
+    sessionsEl.innerHTML = '';
+    sessions.forEach(s => {
+      const div = document.createElement('div');
+      div.className = 'item' + (s.id === currentSession ? ' active' : '');
+      div.innerHTML = '<span class="item-title"></span><button class="item-del" title="删除此对话">✕</button>';
+      div.querySelector('.item-title').textContent = s.title;
+      div.querySelector('.item-del').onclick = (e) => { e.stopPropagation(); deleteSession(s.id); };
+      div.onclick = () => openSession(s.id);
+      sessionsEl.appendChild(div);
+    });
+  }
+  async function deleteSession(sid) {
+    if (!confirm('确定删除这个对话吗？此操作不可恢复（图片不会删除）。')) return;
+    const r = await api('/api/session/' + sid, {method: 'DELETE'});
+    if (!r.ok) { alert('删除失败'); return; }
+    await loadSessionList();
+    if (currentSession === sid) {
+      currentSession = null;
+      if (sessions.length > 0) await openSession(sessions[0].id);
+      else await newChat();
+    } else {
+      renderSidebar();
+    }
+  }
+  async function loadSessionList() {
+    const j = await (await api('/api/sessions')).json();
+    sessions = j.sessions || [];
+  }
+  async function openSession(sid) {
+    const r = await api('/api/session/' + sid);
+    if (!r.ok) return;
+    const j = await r.json();
+    currentSession = sid;
+    currentMessages = j.messages || [];
+    currentPrompt = j.prompt || '';
+    currentVersions = j.versions || {};
+    assistantVersions = j.assistant_versions || {};
+    promptArea.value = currentPrompt;
+    negativeArea.value = j.negative || 'worst quality, low quality, score_1, score_2, score_3, blurry, jpeg artifacts, chromatic aberration';
+    seedInput.value = '';
+    stepsInput.value = (j.params && j.params.steps) || 30;
+    cfgInput.value = (j.params && j.params.cfg != null) ? j.params.cfg : 4.0;
+    widthInput.value = (j.params && j.params.width) || 1024;
+    heightInput.value = (j.params && j.params.height) || 1024;
+    syncSizePreset();
+    lastSeed = (j.params && j.params.seed) || null;
+    renderLastSeed();
+    renderChat();
+    renderSidebar();
+    setImage(j.last_image ? '<img src="' + j.last_image + '">' : '<div class="hint">图片会显示在这里</div>');
+    // 要回传旧图直接从下方图库缩略图带或图库里拖，不再依赖会话记录里的图
+  }
+  async function newChat() {
+    const j = await (await api('/api/session/new', {method:'POST'})).json();
+    await loadSessionList();
+    await openSession(j.session_id);
+    inputEl.focus();
+  }
+
+  // ---- 聊天渲染 ----
+  function messageHtml(i, m) {
+    if (m.role === 'search') {
+      const src = m.source ? '（来源：' + escapeHtml(m.source) + '）' : '';
+      const body = m.found
+        ? '<div class="search-head">🔍 联网搜索「' + escapeHtml(m.character) + '」' + src + '</div><div class="search-body">' + escapeHtml(m.content) + '</div>'
+        : '<div class="search-head">🔍 未搜到「' + escapeHtml(m.character) + '」的资料</div>';
+      return '<div class="msg search" data-idx="' + i + '">' + body + '</div>';
+    }
+    const isUser = m.role === 'user';
+    let body = isUser ? escapeHtml(m.content) : renderContent(m.content);
+    if (isUser && m.images && m.images.length) {
+      const thumbs = m.images.map(f =>
+        '<img class="attach-thumb" src="/images/' + encodeURIComponent(f) + '" title="' + escapeHtml(f) + '" onclick="window.open(this.src)">'
+      ).join('');
+      body = '<div class="attach-row">' + thumbs + '</div>' + body;
+    }
+    const role = isUser ? 'user' : 'assistant';
+    let foot = '';
+    const v = (isUser ? currentVersions : assistantVersions)[i];
+    if (v && v.branches.length > 1) {
+      const at = v.active;
+      foot += '<div class="ver-nav">'
+        + '<button class="ver-btn" ' + (at > 0 ? '' : 'disabled') + ' onclick="switchVersion(' + i + ',-1,\'' + role + '\')" title="上一版">‹</button>'
+        + '<span class="ver-count">第 ' + (at + 1) + '/' + v.branches.length + ' 版</span>'
+        + '<button class="ver-btn" ' + (at < v.branches.length - 1 ? '' : 'disabled') + ' onclick="switchVersion(' + i + ',1,\'' + role + '\')" title="下一版">›</button>'
+        + '</div>';
+    }
+    foot += '<div class="msg-actions">';
+    if (isUser) {
+      foot += '<button onclick="editMessage(' + i + ')" title="编辑这条消息：改完发送会新增一个版本，取消则保持原样">✏️ 编辑</button>';
+    } else {
+      foot += '<button onclick="regenerateMessage(' + i + ')" title="换个 AI 回答：旧回答保留，可用 ‹/› 切回">🎲 重新生成</button>';
+      if (m.prompt) foot += '<button onclick="restorePrompt(' + i + ')">📋 恢复提示词</button>';
+    }
+    foot += '</div>';
+    return '<div class="msg ' + (isUser ? 'user' : 'assistant') + '" data-idx="' + i + '">' + body + foot + '</div>';
+  }
+  function renderChat() {
+    messagesEl.innerHTML = '';
+    currentMessages.forEach((m, i) => { messagesEl.innerHTML += messageHtml(i, m); });
+    scrollChat();
+  }
+  function renderLastSeed() {
+    lastSeedEl.textContent = lastSeed != null ? '上次 seed：' + lastSeed : '';
+  }
+
+  async function restorePrompt(i) {
+    const m = currentMessages[i];
+    if (m && m.prompt) {
+      promptArea.value = m.prompt;
+      currentPrompt = m.prompt;
+      await savePrompt();
+    }
+    if (m && m.negative) negativeArea.value = m.negative;
+  }
+
+  // ---- 聊天（流式）----
+  async function send() {
+    const msg = inputEl.value.trim();
+    if (!currentSession) return;
+    const attach = pendingImages.slice();
+    if (!msg && !attach.length) return;      // 既没写文字、也没带图
+    inputEl.value = '';
+    pendingImages = [];                      // 先清 UI；blob URL 留到发完再回收
+    renderPending();
+    await sendMessage(msg, attach);
+    attach.forEach(a => { if (a.blob) URL.revokeObjectURL(a.url); });
+  }
+  async function sendMessage(msg, attach) {
+    // attach（可选）：[{name, url}] 拖进来的回传图；不传就是普通文字消息
+    let html = escapeHtml(msg);
+    if (attach && attach.length) {
+      html = '<div class="attach-row">'
+        + attach.map(a => '<img class="attach-thumb" src="' + a.url + '" title="' + escapeHtml(a.name) + '">').join('')
+        + '</div>' + (msg ? html : '<i>（未写关注点，按默认分析）</i>');
+    }
+    appendBubble('user', html);
+    const body = {session_id: currentSession, message: msg};
+    if (attach && attach.length) {
+      // 压缩放这里（不是拖入时）——拖入要秒回，而且用户可能拖完又移除
+      body.images = [];
+      for (const a of attach) {
+        body.images.push({name: a.name, data: await compressToJpeg(a.url, 1024, 0.85)});
+      }
+    }
+    await streamChat(body);
+  }
+  async function streamChat(body) {
+    const bubble = appendBubble('assistant', '');
+    let full = '';
+    try {
+      const res = await fetch('/api/chat', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify(body)});
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        bubble.innerHTML = '<span class="err">' + escapeHtml(j.error || ('HTTP ' + res.status)) + '</span>';
+      } else {
+        const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, {stream: true});
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+          for (const line of chunk.split('\n')) {
+            if (!line.startsWith('data:')) continue;
+            const p = JSON.parse(line.slice(5).trim());
+            if (p.type === 'delta') { full += p.content; bubble.innerHTML = renderContent(full); scrollChat(); }
+            else if (p.type === 'search') {
+              const card = document.createElement('div');
+              card.className = 'msg search';
+              const src = p.source ? '（来源：' + escapeHtml(p.source) + '）' : '';
+              card.innerHTML = p.found
+                ? '<div class="search-head">🔍 联网搜索「' + escapeHtml(p.character) + '」' + src + '</div><div class="search-body">' + escapeHtml(p.text) + '</div>'
+                : '<div class="search-head">🔍 未搜到「' + escapeHtml(p.character) + '」的资料</div>';
+              messagesEl.insertBefore(card, bubble);
+            }
+            else if (p.type === 'done') {
+              if (p.prompt) { currentPrompt = p.prompt; promptArea.value = p.prompt; }
+              if (p.negative) { negativeArea.value = p.negative; }
+            }
+            else if (p.type === 'warning') { bubble.innerHTML += '<div class="warn">⚠️ ' + escapeHtml(p.error) + '</div>'; }
+            else if (p.type === 'error') { bubble.innerHTML += '<div class="err">' + escapeHtml(p.error) + '</div>'; }
+          }
+        }
+      }
+      }
+    } catch (e) {
+      bubble.innerHTML += '<div class="err">网络错误：' + escapeHtml(String(e)) + '</div>';
+    }
+    await loadSessionList();
+    await openSession(currentSession);
+  }
+  // ---- 消息编辑（就地修改后重发，DeepSeek 式）----
+  function editMessage(i) {
+    const m = currentMessages[i];
+    if (!m || m.role !== 'user' || !currentSession) return;
+    const el = document.querySelector('#messages .msg.user[data-idx="' + i + '"]');
+    if (!el || el.dataset.editing === '1') return;
+    el.dataset.editing = '1';
+    el.innerHTML = '<textarea class="edit-area" spellcheck="false"></textarea>'
+      + '<div class="msg-actions">'
+      + '<button class="primary" onclick="submitEdit(' + i + ')">✅ 确认发送</button>'
+      + '<button onclick="cancelEdit(' + i + ')">取消</button>'
+      + '</div>';
+    const ta = el.querySelector('textarea');
+    ta.value = m.content;
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(i); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(i); }
+    });
+  }
+  async function submitEdit(i) {
+    const m = currentMessages[i];
+    if (!m || m.role !== 'user' || !currentSession) return;
+    const el = document.querySelector('#messages .msg.user[data-idx="' + i + '"]');
+    const ta = el ? el.querySelector('textarea') : null;
+    const text = ta ? ta.value.trim() : '';
+    if (!text) { alert('消息不能为空'); return; }
+    // 新建一个版本分支（原消息保留，可 ‹/› 切回），随后发送修改后的内容
+    const r = await api('/api/session/' + currentSession + '/rewrite', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify({index: i})});
+    if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || '操作失败'); return; }
+    await openSession(currentSession);
+    await sendMessage(text);
+  }
+  function cancelEdit(i) {
+    const el = document.querySelector('#messages .msg.user[data-idx="' + i + '"]');
+    if (el) el.outerHTML = messageHtml(i, currentMessages[i]);
+  }
+  // ---- 重新生成 AI 回答（旧回答保留为兄弟版本）----
+  async function regenerateMessage(i) {
+    const m = currentMessages[i];
+    if (!currentSession || !m || m.role !== 'assistant') return;
+    const r = await api('/api/session/' + currentSession + '/regenerate', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify({index: i})});
+    if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || '重新生成失败'); return; }
+    await openSession(currentSession);
+    await streamChat({session_id: currentSession, regenerate: true});
+  }
+  // ---- 版本切换（‹/›）----
+  function switchVersion(i, dir, role) {
+    const v = (role === 'assistant' ? assistantVersions : currentVersions)[i];
+    if (!v) return;
+    const at = v.active + dir;
+    if (at < 0 || at >= v.branches.length) return;
+    switchBranch(v.branches[at]);
+  }
+  async function switchBranch(bid) {
+    if (!currentSession) return;
+    await api('/api/session/' + currentSession + '/switch', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify({branch: bid})});
+    await openSession(currentSession);
+  }
+  function appendBubble(role, html) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    div.innerHTML = html;
+    messagesEl.appendChild(div);
+    scrollChat();
+    return div;
+  }
+  $('send').onclick = send;
+  inputEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+
+  // ---- 提示词手动编辑 ----
+  async function savePrompt() {
+    if (!currentSession) return;
+    const p = promptArea.value.trim();
+    currentPrompt = p;
+    await api('/api/session/' + currentSession + '/prompt', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify({prompt: p})});
+  }
+  $('savePromptBtn').onclick = savePrompt;
+  $('copyPrompt').onclick = async () => {
+    try { await navigator.clipboard.writeText(promptArea.value); } catch (e) {}
+    alert('已复制提示词');
+  };
+  $('negativeArea').addEventListener('change', async () => {
+    if (!currentSession) return;
+    const n = negativeArea.value.trim();
+    if (n) await api('/api/session/' + currentSession + '/negative', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify({negative: n})});
+  });
+
+  // ---- 尺寸预设 ----
+  function syncSizePreset() {
+    const w = +widthInput.value, h = +heightInput.value;
+    for (const opt of $('sizePreset').options) {
+      if (opt.value === 'custom') continue;
+      const [pw, ph] = opt.value.split(',').map(Number);
+      if (pw === w && ph === h) { $('sizePreset').value = opt.value; return; }
+    }
+    $('sizePreset').value = 'custom';
+  }
+  $('sizePreset').onchange = () => {
+    const v = $('sizePreset').value;
+    if (v === 'custom') return;
+    const [w, h] = v.split(',').map(Number);
+    widthInput.value = w; heightInput.value = h;
+  };
+  [widthInput, heightInput].forEach(el => el.addEventListener('input', syncSizePreset));
+
+  // ---- 生成进度 ----
+  function progressHtml(p) {
+    const max = p.max > 0 ? p.max : 30;
+    const value = Math.min(p.value, max);
+    const pct = Math.round((value / max) * 100);
+    const multi = p.gen_total > 1 ? `第 ${p.gen_index}/${p.gen_total} 张 · ` : '';
+    const text = p.status === 'error' ? '生成出错'
+      : p.status === 'done' ? '完成'
+      : `步骤 ${value}/${max}`;
+    return '<div class="loading prog-wrap">'
+      + '<div>🎨 生成中…（' + multi + text + '）</div>'
+      + '<div class="prog-bar"><div style="width:' + pct + '%"></div></div>'
+      + '<div class="prog-pct">' + pct + '%</div>'
+      + '</div>';
+  }
+  function startProgressPolling() {
+    const timer = setInterval(async () => {
+      try {
+        const j = await (await api('/api/progress')).json();
+        if (j.status !== 'idle') setImage(progressHtml(j));
+      } catch (e) {}
+    }, 800);
+    return () => clearInterval(timer);
+  }
+
+  // ---- 生成 ----
+  function genBody(extra) {
+    return Object.assign({
+      session_id: currentSession,
+      prompt: promptArea.value.trim(),
+      negative: negativeArea.value.trim(),
+      seed: seedInput.value.trim() || null,
+      steps: +stepsInput.value, cfg: +cfgInput.value,
+      width: +widthInput.value, height: +heightInput.value,
+    }, extra || {});
+  }
+  async function generate() {
+    const p = promptArea.value.trim();
+    if (!currentSession || !p) { setImage('<div class="hint">还没有提示词，请先讨论或手动填写</div>'); return; }
+    currentPrompt = p;
+    setImage('<div class="loading">🎨 生成中…（准备中）</div>');
+    const stopProgress = startProgressPolling();
+    let r, j;
+    try {
+      r = await api('/api/generate', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify(genBody())});
+      j = await r.json();
+    } finally {
+      stopProgress();
+    }
+    if (r.ok && j.images && j.images[0]) {
+      lastSeed = j.images[0].seed;
+      setImage('<img src="' + j.images[0].image + '">');
+      renderLastSeed(); loadLogs(); loadStrip();
+    } else {
+      setImage('<div class="err">' + escapeHtml(j.error || '生成失败') + '</div>');
+    }
+  }
+  async function generateMulti() {
+    const p = promptArea.value.trim();
+    const n = Math.min(Math.max(+multiN.value || 4, 1), 4);
+    if (!currentSession || !p) { setImage('<div class="hint">还没有提示词</div>'); return; }
+    currentPrompt = p;
+    setImage('<div class="loading">🆚 对比生成 ' + n + ' 张…（准备中）</div>');
+    const stopProgress = startProgressPolling();
+    let r, j;
+    try {
+      r = await api('/api/generate_multi', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify(genBody({n}))});
+      j = await r.json();
+    } finally {
+      stopProgress();
+    }
+    if (r.ok && j.images) {
+      lastSeed = j.images[j.images.length - 1].seed;
+      let grid = '<div class="grid">';
+      j.images.forEach(im => { grid += '<div class="cell"><img src="' + im.image + '"><span class="seed-tag">seed ' + im.seed + '</span></div>'; });
+      grid += '</div>';
+      setImage(grid); renderLastSeed(); loadLogs(); loadGallery(); loadStrip();
+    } else {
+      setImage('<div class="err">' + escapeHtml(j.error || '生成失败') + '</div>');
+    }
+  }
+  // ---- 图片回传（让 AI 看图）----
+  // 本机没装 Pillow，压缩只能在前端做：canvas 等比缩到最长边 ≤1024 再转 JPEG，
+  // 单张体积约降到 1/8。注意模型侧 token 与分辨率无关（≤384/张），压缩省的是传输不是对话成本。
+  const VISION_DEFAULT_NOTE = '分析这张图的构图元素：镜头距离与视角、人物姿态与神态、服装细节、背景与配色';
+
+  function compressToJpeg(url, maxSide, quality) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+          const w = Math.max(1, Math.round(img.naturalWidth * scale));
+          const h = Math.max(1, Math.round(img.naturalHeight * scale));
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#fff';          // JPEG 无透明通道，先铺白底免得透明区变黑
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(c.toDataURL('image/jpeg', quality));
+        } catch (e) { reject(e); }
+      };
+      img.onerror = () => reject(new Error('图片加载失败：' + url));
+      img.src = url;
+    });
+  }
+
+  // ── 拖拽回传 ──────────────────────────────────────────────
+  // 拖动源：图库缩略图带（#stripItems）、完整图库、右侧当前图、以及从系统拖进来的图片文件。
+  // 松手只是「附带」，不直接发送——用户还能写关注点、继续拖第 2、3 张，最后点发送一起发出去。
+  // 让一个 <img> 可拖：内部携带 {name,url}，同时留一条纯链接兜底
+  function draggableImg(img, name, url) {
+    img.draggable = true;
+    img.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'copy';
+      e.dataTransfer.setData(DRAG_MIME, JSON.stringify({name, url}));
+      e.dataTransfer.setData('text/uri-list', url);
+    });
+  }
+  // 把容器里所有图都变成拖动源（名字取 URL 末段，即 images/ 下的原图名）
+  function makeDraggable(root) {
+    root.querySelectorAll('img').forEach(img => {
+      const u = img.getAttribute('src') || '';
+      if (u) draggableImg(img, u.split('/').pop(), u);
+    });
+  }
+
+  // ── 待发送的图 ──
+  function addPending(name, url, isBlob) {
+    if (!name) name = 'image.png';
+    if (pendingImages.some(p => p.name === name)) return;   // 同图不重复附带
+    pendingImages.push({name, url, blob: !!isBlob});
+    renderPending();
+  }
+  function removePending(i) {
+    const p = pendingImages[i];
+    if (p && p.blob) URL.revokeObjectURL(p.url);            // 文件拖进来的是 blob URL，要回收
+    pendingImages.splice(i, 1);
+    renderPending();
+  }
+  function clearPending() {
+    pendingImages.forEach(p => { if (p.blob) URL.revokeObjectURL(p.url); });
+    pendingImages = [];
+    renderPending();
+  }
+  function renderPending() {
+    const row = $('pendingRow');
+    if (!pendingImages.length) {
+      row.classList.remove('on'); row.innerHTML = '';
+      inputEl.placeholder = INPUT_PLACEHOLDER;
+      return;
+    }
+    row.classList.add('on');
+    row.innerHTML = '<span class="strip-label">已附带<br><small>' + pendingImages.length + ' 张</small></span>'
+      + pendingImages.map((p, i) =>
+          '<span class="p-item"><img src="' + p.url + '" title="' + escapeHtml(p.name) + '">'
+          + '<button class="p-x" data-i="' + i + '" title="移除">✕</button></span>').join('')
+      + '<button class="p-clear">全部清除</button>';
+    row.querySelectorAll('.p-x').forEach(b => b.onclick = () => removePending(+b.dataset.i));
+    const c = row.querySelector('.p-clear');
+    if (c) c.onclick = clearPending;
+    inputEl.placeholder = '写下你想让它注意什么（留空就按默认关注点分析），然后点发送';
+  }
+
+  // ── 投放 ──
+  async function handleDrop(dt) {
+    if (!currentSession) { alert('请先新建或打开一个会话'); return; }
+    // ① 内部拖拽（图库 / 缩略图带 / 右侧当前图）
+    const raw = dt.getData(DRAG_MIME);
+    if (raw) {
+      try { const o = JSON.parse(raw); if (o && o.url) { addPending(o.name, o.url, false); return; } } catch (e) {}
+    }
+    // ② 从系统拖进来的图片文件
+    const files = Array.from(dt.files || []).filter(f => (f.type || '').startsWith('image/'));
+    if (files.length) { files.forEach(f => addPending(f.name, URL.createObjectURL(f), true)); return; }
+    // ③ 兜底：拖的是同源的 /images/xxx.png 链接
+    const uri = (dt.getData('text/uri-list') || dt.getData('text/plain') || '').split('\n')[0].trim();
+    if (uri) {
+      try {
+        const u = new URL(uri, location.href);
+        if (u.origin === location.origin && u.pathname.startsWith('/images/')) {
+          const n = decodeURIComponent(u.pathname.split('/').pop());
+          addPending(n, u.pathname, false);
+          return;
+        }
+      } catch (e) {}
+    }
+    alert('这里只认图片：拖图库里的缩略图，或从文件夹直接拖图片文件进来。');
+  }
+
+  function initDropZone() {
+    const zone = document.querySelector('main');
+    let depth = 0;
+    const hasImg = dt => dt && Array.from(dt.types || []).some(t => t === 'Files' || t === DRAG_MIME || t === 'text/uri-list');
+    zone.addEventListener('dragenter', e => {
+      if (!hasImg(e.dataTransfer)) return;
+      e.preventDefault(); depth++; zone.classList.add('drop-hover');
+    });
+    zone.addEventListener('dragover', e => {
+      if (!hasImg(e.dataTransfer)) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
+    });
+    zone.addEventListener('dragleave', e => {
+      e.preventDefault();
+      if (--depth <= 0) { depth = 0; zone.classList.remove('drop-hover'); }
+    });
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); depth = 0; zone.classList.remove('drop-hover');
+      handleDrop(e.dataTransfer);
+    });
+  }
+
+  async function stopGenerate() { await api('/api/generate/stop', {method:'POST'}); loadLogs(); }
+  $('generateBtn').onclick = generate;
+  $('regenerateBtn').onclick = () => { seedInput.value = ''; generate(); };
+  $('multiBtn').onclick = generateMulti;
+  $('stopBtn').onclick = stopGenerate;
+
+  // ---- 规则预设 CRUD ----
+  function renderRulesList() {
+    const el = $('rulesList');
+    el.innerHTML = '';
+    // 新建预设时：列表顶部显示占位项，编辑态可见
+    if (currentPreset === '__new__') {
+      const n = document.createElement('div');
+      n.className = 'rule-item active new-item';
+      n.innerHTML = '<span class="rule-name">＋ 新预设（未命名）</span><span class="rule-badge" style="color:var(--amber);border-color:rgba(230,162,60,.3);background:rgba(230,162,60,.1)">编辑中</span>';
+      el.appendChild(n);
+    }
+    // 当前规则入口（始终绿色标注 = 正在使用）
+    const a = document.createElement('div');
+    a.className = 'rule-item current-item' + (currentPreset === null ? ' active' : '');
+    a.innerHTML = '<span class="rule-name">📄 当前规则（使用中）</span>';
+    a.onclick = selectActiveRules;
+    el.appendChild(a);
+    // 预设列表；内容正好等于当前规则的加「使用中」绿标
+    Object.keys(presets).forEach(name => {
+      const d = document.createElement('div');
+      d.className = 'rule-item' + (currentPreset === name ? ' active' : '');
+      d.innerHTML = '<span class="rule-name"></span>' + (presets[name] === activeRules ? '<span class="rule-badge">● 使用中</span>' : '');
+      d.querySelector('.rule-name').textContent = name;
+      d.onclick = () => selectPreset(name);
+      el.appendChild(d);
+    });
+  }
+  function selectActiveRules() {
+    currentPreset = null;
+    $('presetName').value = '';
+    $('presetName').placeholder = '新建时填写；改名直接改这里再保存';
+    rulesArea.value = activeRules;
+    renderRulesList();
+  }
+  function selectPreset(name) {
+    currentPreset = name;
+    $('presetName').value = name;
+    $('presetName').placeholder = '改名直接改这里再保存';
+    rulesArea.value = presets[name] || '';
+    renderRulesList();
+  }
+  async function loadRules() {
+    const j = await (await api('/api/rules')).json();
+    activeRules = j.rules || '';
+    presets = j.presets || {};
+    if (currentPreset === null) rulesArea.value = activeRules;
+    renderRulesList();
+  }
+  $('newPresetBtn').onclick = () => {
+    currentPreset = '__new__';
+    $('presetName').value = '';
+    $('presetName').placeholder = '新建预设名称';
+    rulesArea.value = '';
+    rulesArea.focus();
+    renderRulesList();
+  };
+  // 保存当前预设：新建 / 更新 / 改名（名字框与所选预设不同即视为改名）
+  $('savePresetBtn').onclick = async () => {
+    const name = $('presetName').value.trim();
+    const content = rulesArea.value.trim();
+    if (!content) { alert('规则内容不能为空'); return; }
+    if (!name) { alert('请填写预设名称'); return; }
+    const isNew = (currentPreset === null || currentPreset === '__new__');
+    if (isNew) {
+      const r = await api('/api/rules/presets', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify({name, content})});
+      if (!r.ok) { const j = await r.json().catch(()=>({})); alert(j.error || '创建失败'); return; }
+    } else if (currentPreset === name) {
+      const r = await api('/api/rules/presets/' + encodeURIComponent(name), {method:'PUT', headers: JSON_HEADERS, body: JSON.stringify({content})});
+      if (!r.ok) { const j = await r.json().catch(()=>({})); alert(j.error || '保存失败'); return; }
+    } else {
+      const r1 = await api('/api/rules/presets/' + encodeURIComponent(currentPreset) + '/rename', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify({new_name: name})});
+      if (!r1.ok) { const j = await r1.json().catch(()=>({})); alert(j.error || '重命名失败'); return; }
+      const r2 = await api('/api/rules/presets/' + encodeURIComponent(name), {method:'PUT', headers: JSON_HEADERS, body: JSON.stringify({content})});
+      if (!r2.ok) { const j = await r2.json().catch(()=>({})); alert(j.error || '保存失败'); return; }
+    }
+    await loadRules();
+    selectPreset(name);
+    alert('预设已保存');
+  };
+  // 使用当前预设：把当前编辑的内容设为聊天用的当前规则（新对话生效）
+  $('usePresetBtn').onclick = async () => {
+    const content = rulesArea.value.trim();
+    if (!content) { alert('规则内容不能为空'); return; }
+    await api('/api/rules', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify({rules: content})});
+    activeRules = content;
+    renderRulesList();
+    alert('已使用该预设作为当前规则（新对话立即生效）');
+  };
+  // 删除预设
+  $('deletePresetBtn').onclick = async () => {
+    if (!currentPreset || currentPreset === '__new__') { alert('请先在列表中选择一个预设'); return; }
+    if (!confirm('删除预设「' + currentPreset + '」？')) return;
+    const r = await api('/api/rules/presets/' + encodeURIComponent(currentPreset), {method:'DELETE'});
+    if (!r.ok) { alert('删除失败'); return; }
+    await loadRules();
+    selectActiveRules();
+  };
+
+  // ---- 联网搜索 ----
+  const PROVIDER_NAMES = { baike: '百度百科', moegirl: '萌娘百科', wikipedia: '维基百科', serper: '通用搜索(Serper)' };
+  let searchProviders = ['baike', 'moegirl', 'wikipedia', 'serper'];
+
+  async function loadSearchSettings() {
+    const j = await (await api('/api/search/settings')).json();
+    searchProviders = j.providers || ['baike', 'moegirl', 'wikipedia', 'serper'];
+    $('autoSearch').checked = !!j.auto;
+    $('serperKey').value = '';
+    $('serperKey').placeholder = j.has_serper_key ? ('已设置 ' + j.serper_key_masked) : 'Serper API key（可选，通用搜索用）';
+    renderProviderList();
+  }
+  function renderProviderList() {
+    const el = $('providerList');
+    el.innerHTML = '';
+    const all = ['baike', 'moegirl', 'wikipedia', 'serper'];
+    const ordered = searchProviders.slice();
+    all.forEach(p => { if (!ordered.includes(p)) ordered.push(p); });
+    ordered.forEach(p => {
+      const enabled = searchProviders.includes(p);
+      const ei = searchProviders.indexOf(p);
+      const row = document.createElement('div');
+      row.className = 'provider-row';
+      row.innerHTML = '<label class="chk" style="margin:0;flex:1"><input type="checkbox" ' + (enabled ? 'checked' : '') + '><span class="p-name">' + (PROVIDER_NAMES[p] || p) + '</span></label>'
+        + '<button class="p-btn" title="上移" ' + (ei <= 0 ? 'disabled' : '') + '>↑</button>'
+        + '<button class="p-btn" title="下移" ' + (ei < 0 || ei >= searchProviders.length - 1 ? 'disabled' : '') + '>↓</button>';
+      const chk = row.querySelector('input');
+      const btns = row.querySelectorAll('button');
+      chk.onchange = () => {
+        if (chk.checked) { if (!searchProviders.includes(p)) searchProviders.push(p); }
+        else { searchProviders = searchProviders.filter(x => x !== p); }
+        renderProviderList();
+      };
+      btns[0].onclick = () => moveProvider(p, -1);
+      btns[1].onclick = () => moveProvider(p, 1);
+      el.appendChild(row);
+    });
+  }
+  function moveProvider(p, dir) {
+    const i = searchProviders.indexOf(p);
+    if (i < 0) return;
+    const j = i + dir;
+    if (j < 0 || j >= searchProviders.length) return;
+    [searchProviders[i], searchProviders[j]] = [searchProviders[j], searchProviders[i]];
+    renderProviderList();
+  }
+  async function saveSearchSettings() {
+    const k = $('serperKey').value.trim();
+    const body = { providers: searchProviders, auto: $('autoSearch').checked };
+    if (k) body.serper_api_key = k;
+    await api('/api/search/settings', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify(body)});
+    alert('搜索设置已保存');
+    await loadSearchSettings();
+  }
+  async function doManualSearch() {
+    const q = $('searchQuery').value.trim();
+    const resultEl = $('searchResult');
+    if (!q) { resultEl.textContent = '请输入角色名'; return; }
+    resultEl.textContent = '🔍 搜索中…';
+    const body = { query: q };
+    if (currentSession) body.session_id = currentSession;
+    const r = await api('/api/search', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify(body)});
+    const j = await r.json();
+    if (j.found) {
+      resultEl.textContent = '已找到「' + q + '」（来源：' + j.source + '）\n\n' + j.text;
+      if (currentSession) await openSession(currentSession);
+    } else {
+      resultEl.textContent = '未搜到「' + q + '」的资料。' + (j.timeout ? '（搜索超时，网络太慢）' : '') + (j.providers ? ' 已尝试：' + j.providers.join(', ') : '');
+    }
+  }
+  $('saveSearchSettings').onclick = saveSearchSettings;
+  $('doSearch').onclick = doManualSearch;
+
+  // ---- 聊天区搜索框：手动搜索角色，结果以文字卡片出现在对话里 ----
+  async function chatSearch() {
+    const q = $('chatSearchInput').value.trim();
+    const btn = $('chatSearchBtn');
+    if (!q) { alert('请输入要搜索的角色名'); return; }
+    if (!currentSession) { alert('请先打开一个对话'); return; }
+    btn.disabled = true; btn.textContent = '搜索中…';
+    try {
+      const r = await api('/api/search', {method:'POST', headers: JSON_HEADERS, body: JSON.stringify({query: q, session_id: currentSession})});
+      const j = await r.json();
+      if (j.found) {
+        await openSession(currentSession);  // 搜索卡片会作为文字消息出现在对话里
+      } else {
+        alert(j.error || (j.timeout ? '搜索超时（网络太慢），已跳过，可直接继续对话' : '未搜到「' + q + '」的资料。') + (j.providers ? ' 已尝试：' + j.providers.join(', ') : ''));
+      }
+    } catch (e) {
+      alert('搜索失败：' + e);
+    } finally {
+      btn.disabled = false; btn.textContent = '🔍 搜索角色';
+    }
+  }
+  $('chatSearchBtn').onclick = chatSearch;
+  $('chatSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); chatSearch(); } });
+
+  // ---- 图库 / 日志 ----
+  async function loadGallery() {
+    const j = await (await api('/api/images')).json();
+    galleryEl.innerHTML = '';
+    if (!j.images.length) { galleryEl.innerHTML = '<div class="hint">还没有生成图片</div>'; return; }
+    j.images.forEach(im => {
+      const d = document.createElement('div'); d.className = 'g-item';
+      d.innerHTML = '<img src="' + im.url + '" loading="lazy"><span>' + escapeHtml(im.name) + '</span>';
+      d.onclick = () => openLightbox(im.url);
+      makeDraggable(d);          // 图库里的图也能直接拖进聊天区回传
+      galleryEl.appendChild(d);
+    });
+  }
+  // 输入框上方的图库缩略图带：常驻可见，是「拖进聊天区」的主要拖动源
+  async function loadStrip() {
+    const j = await (await api('/api/images')).json();
+    const box = $('stripItems');
+    box.innerHTML = '';
+    if (!j.images.length) { box.innerHTML = '<span class="hint">还没有生成图片</span>'; return; }
+    j.images.slice(0, 40).forEach(im => {
+      const w = document.createElement('span'); w.className = 's-item';
+      const img = document.createElement('img');
+      img.src = im.url; img.loading = 'lazy';
+      img.title = im.name + '\n拖到聊天区就能回传给 AI 看';
+      img.onclick = () => openLightbox(im.url);
+      draggableImg(img, im.name, im.url);
+      w.appendChild(img);
+      box.appendChild(w);
+    });
+  }
+  async function loadLogs() {
+    const j = await (await api('/api/logs')).json();
+    logsEl.innerHTML = '';
+    (j.logs || []).slice().reverse().forEach(l => {
+      const t = new Date(l.ts * 1000).toLocaleTimeString();
+      const d = document.createElement('div'); d.className = 'log-item';
+      d.textContent = t + ' [' + l.event + ']'
+        + (l.seed !== undefined ? ' seed=' + l.seed : '')
+        + (l.steps !== undefined ? ' steps=' + l.steps : '')
+        + (l.size ? ' ' + l.size : '')
+        + (l.secs !== undefined ? ' ' + l.secs + 's' : '')
+        + (l.file ? ' ' + l.file : '')
+        + (l.error ? ' ' + l.error : '');
+      logsEl.appendChild(d);
+    });
+  }
+
+  // ---- 抽屉 ----
+  $('drawerToggle').onclick = () => document.body.classList.toggle('show-drawer');
+  document.querySelectorAll('.drawer-tabs button').forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll('.drawer-tabs button').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      $('tab-' + b.dataset.tab).classList.add('active');
+      if (b.dataset.tab === 'search') loadSearchSettings();
+      if (b.dataset.tab === 'gallery') loadGallery();
+      if (b.dataset.tab === 'logs') loadLogs();
+    };
+  });
+
+  // ---- 图片全屏放大 ----
+  imagePanel.addEventListener('click', e => { if (e.target.tagName === 'IMG') openLightbox(e.target.src); });
+  function openLightbox(src) {
+    $('lightboxImg').src = src;
+    $('lightbox').style.display = 'flex';
+  }
+  function closeLightbox() { $('lightbox').style.display = 'none'; }
+  $('lightbox').onclick = closeLightbox;
+  $('lightboxImg').onclick = e => e.stopPropagation();
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+  // ---- 侧栏收起/展开 ----
+  function setSessionsCollapsed(collapsed) {
+    document.body.classList.toggle('collapsed-sessions', collapsed);
+    $('toggleSessions').textContent = collapsed ? '▶ 展开记录' : '◀ 收起记录';
+    try { localStorage.setItem('anima_sessions_collapsed', collapsed ? '1' : '0'); } catch (e) {}
+  }
+  $('toggleSessions').onclick = () => {
+    setSessionsCollapsed(!document.body.classList.contains('collapsed-sessions'));
+  };
+
+  // ---- 启动 ----
+  $('newChat').onclick = newChat;
+  try { if (localStorage.getItem('anima_sessions_collapsed') === '1') setSessionsCollapsed(true); } catch (e) {}
+  initDropZone();
+  loadKey();
+  loadRules();
+  loadSearchSettings();
+  loadStrip();
+  (async () => {
+    await loadSessionList();
+    if (sessions.length > 0) await openSession(sessions[0].id);
+    else await newChat();
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+# ══════════════════════════════════════════════════════════════
+#  Anima Studio —— 上传 GitHub 前的不上传名单
+#  规则：写在这里的东西「留在本机」，不会被 git 传到 GitHub。
+#  （⚠️ .gitignore 只管「还没被 git 跟踪过」的文件。
+#     如果某个文件已经 commit 过一次，后面再加规则也挡不住——
+#     必须从 git 历史里清掉。所以别先 git add . 再补这个文件。）
+# ══════════════════════════════════════════════════════════════
+
+# ── 1. 机密：泄露 = 别人能花你的钱调 API ──────────────────────
+# 不写死文件名，用通配，这样将来多出任何备份/副本都会自动挡住。
+# 四条规则，「以 config.json 打头」和「以 .json 结尾」是两回事，都要写：
+#
+#   config.json*    -> config.json / config.json.bak-20261001 / config.json.old
+#   config*.json    -> config copy.json / config 副本.json / config-backup.json
+#   sessions.json*  -> sessions.json / sessions.json.bak-*
+#   sessions*.json  -> sessions copy.json / sessions_old.json
+#
+# ⚠️ .gitignore 不支持行尾注释！# 必须单独占一行，写在规则后面会被当成文件名的一部分。
+config.json*
+config*.json
+sessions.json*
+sessions*.json
+
+# 启动脚本——云部署文档建议把 DEEPSEEK_API_KEY 写进去，
+# 所以默认挡住。如果你写的是不含密钥的版本，想让云端也有，
+# 就把下面这行删掉（或改成 !start.sh 放行）。
+start.sh
+
+# ⚠️ 上面 config*.json 会连「空壳模板」一起挡住，所以这里反向放行它。
+#    git 的规则是「后写的覆盖先写的」，! 开头 = 撤销上面的忽略。
+#    ⚠️ 将来若再加 config.default.json 之类的「要上传」的文件，
+#       同样要在这里补一行 !，否则会被静默挡掉、云端就缺文件了。
+!config.example.json
+
+# ── 2. 用户数据：体积大 & 属于个人，不适合公开 ────────────────
+# 180MB 生成作品（129 个文件）。云端会自建这个目录（app.py 第 25 行），
+# 所以排除掉不影响部署。
+images/
+
+# ── 3. 环境与缓存：跟操作系统绑死，传上去没用 ──────────────────
+# Windows 专用虚拟环境，Linux 云端必须重建，不能直接搬
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ── 4. 测试残留（跑 E2E 时临时生成的，不该进版本库） ────────────
+tests/_e2e_tmp/
+*.vision.jpg
+_cdp_profile*/
+
+# ── 5. 操作系统 / 编辑器垃圾 ──────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
+
+# ── 6. 运行时产物 ────────────────────────────────────────────
+*.log
+comfy_progress.json

@@ -1,0 +1,25 @@
+# ══════════════════════════════════════════════════════════════
+#  换行符规范化
+#  仓库在本机（Windows）编辑，但要被 Linux（AutoDL 云）克隆。
+#  如果不统一，云端拿到的 .sh 脚本会带上 Windows 的 CRLF，
+#  Linux 执行时报 "bad interpreter: /bin/bash^M" 直接跑不起来。
+# ══════════════════════════════════════════════════════════════
+
+# 默认：文本文件一律用 LF 存进仓库
+* text=auto eol=lf
+
+# 二进制文件：别做任何换行转换（转换会损坏文件）
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.webp       binary
+*.safetensors binary
+*.ico        binary
+*.pyc        binary
+
+# Windows 专用脚本保持 CRLF（本机还要双击运行）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell 脚本强制 LF（云端靠它启动）
+*.sh text eol=lf
